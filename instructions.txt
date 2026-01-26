@@ -1,0 +1,59 @@
+Setting up a crontab on macOS to run scpSpeed.py hourly
+=======================================================
+
+Step 1: Ensure SSH key authentication works without prompts
+-----------------------------------------------------------
+Your script uses SSH/SCP, so you need passwordless authentication.
+Test that this works without prompting for a password:
+
+    ssh root@167.99.128.200 echo "connection works"
+
+If prompted for a password, set up SSH key authentication first.
+
+
+Step 2: Configure the wrapper script
+------------------------------------
+Edit run_scp_collector.sh and change the PROJECT_DIR variable to match
+your project directory location. For example:
+
+    PROJECT_DIR="/Users/yourname/projects/file-xfer-experiments"
+
+Then make it executable:
+
+    chmod +x run_scp_collector.sh
+
+
+Step 3: Edit your crontab
+-------------------------
+Open the crontab editor:
+
+    crontab -e
+
+Add this line to run every hour at minute 0 (edit the path to match your setup):
+
+    0 * * * * /path/to/your/file-xfer-experiments/run_scp_collector.sh
+
+
+Step 4: Grant cron Full Disk Access (macOS requirement)
+-------------------------------------------------------
+1. Open System Preferences -> Security & Privacy -> Privacy tab
+2. Select "Full Disk Access" from the left sidebar
+3. Click the lock icon and authenticate
+4. Click + and add /usr/sbin/cron (press Cmd+Shift+G to type the path)
+
+
+Step 5: Verify it's scheduled
+-----------------------------
+Run the following to confirm your crontab entry:
+
+    crontab -l
+
+
+Notes
+-----
+- Logs will be saved to results/cron.log
+- Make sure the test files (test_1K.bin, test_10K.bin, etc.) exist in the project folder
+- The first run will create results/scp_data1.json, subsequent runs will increment
+- To test the script manually before scheduling, run:
+
+    ./run_scp_collector.sh
