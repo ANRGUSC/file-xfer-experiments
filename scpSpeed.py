@@ -6,6 +6,8 @@ import sys
 import json
 import re
 import glob
+import socket
+from datetime import datetime
 
 
 HOST = "root@167.99.128.200"
@@ -100,8 +102,20 @@ for f in existing_files:
         max_num = max(max_num, int(match.group(1)))
 next_num = max_num + 1
 
+# Get sender IP address
+try:
+    sender_ip = socket.gethostbyname(socket.gethostname())
+except:
+    sender_ip = "unknown"
+
+# Extract receiver IP from HOST (format: user@ip)
+receiver_ip = HOST.split("@")[1] if "@" in HOST else HOST
+
 # Save data to JSON
 data = {
+    "timestamp": datetime.now().isoformat(),
+    "sender_ip": sender_ip,
+    "receiver_ip": receiver_ip,
     "host": HOST,
     "runs_per_file": RUNS,
     "sleep_between": SLEEP_BETWEEN,

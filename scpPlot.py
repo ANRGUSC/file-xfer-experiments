@@ -3,6 +3,7 @@ import os
 import re
 import glob
 import sys
+from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from monotone_quadratic_fit import monotone_quadratic_fit
@@ -88,8 +89,8 @@ plt.close()
 # R squared value for linear fit
 ss_tot = np.sum((y - np.mean(y))**2)
 ss_res = np.sum((y - y_fit)**2)
-r_squared = 1 - (ss_res / ss_tot)
-print(f"linear: R² = {r_squared:.4f}")
+linear_r_squared = 1 - (ss_res / ss_tot)
+print(f"linear: R² = {linear_r_squared:.4f}")
 
 # Quadratic regression using monotone quadratic fit
 a, b_coef, c = monotone_quadratic_fit(fileSizes, medians)
@@ -113,5 +114,26 @@ plt.close()
 y_pred = a * fileSizes**2 + b_coef * fileSizes + c
 ss_res = np.sum((np.array(medians) - y_pred)**2)
 ss_tot = np.sum((np.array(medians) - np.mean(medians))**2)
-r_squared = 1 - (ss_res / ss_tot)
-print(f"quadratic: R² for quadratic fit: {r_squared:.4f}")
+quadratic_r_squared = 1 - (ss_res / ss_tot)
+print(f"quadratic: R² for quadratic fit: {quadratic_r_squared:.4f}")
+
+# Save analysis results to JSON
+analysis_data = {
+    "timestamp": datetime.now().isoformat(),
+    "source_data_file": f"scp_data{data_num}.json",
+    "medians": medians,
+    "file_sizes_kb": file_sizes_kb,
+    "linear_regression": {
+        "coefficients": {"m": float(m), "b": float(b)},
+        "r_squared": float(linear_r_squared)
+    },
+    "quadratic_regression": {
+        "coefficients": {"a": float(a), "b": float(b_coef), "c": float(c)},
+        "r_squared": float(quadratic_r_squared)
+    }
+}
+
+analysis_file = os.path.join(results_dir, f"scp_data_analyzed{data_num}.json")
+with open(analysis_file, "w") as f:
+    json.dump(analysis_data, f, indent=2)
+print(f"Saved {analysis_file}")
