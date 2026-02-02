@@ -11,58 +11,71 @@ from scipy.optimize import minimize
 def convex_quadratic_fit(x, y):
     """
     Fit a convex quadratic curve y = a*x^2 + b*x + c
-    
+
     Constraints:
-    - a >= 0 (convexity: curve opens upward)
-    
+    - a >= 0 (concave up / convex: parabola opens upward)
+
     This allows the optimizer to find the best convex curve without
     forcing monotonicity. Monotonicity is checked visually/interpretively
     after fitting.
+
+    Note: Internally scales x to [0,1] range for numerical stability,
+    then converts coefficients back to original scale.
     """
-    x = np.array(x)
-    y = np.array(y)
-    
-    # Objective: minimize sum of squared residuals
+    x = np.array(x, dtype=float)
+    y = np.array(y, dtype=float)
+
+    # Scale x to [0, 1] for numerical stability
+    x_min, x_max = x.min(), x.max()
+    x_range = x_max - x_min
+    if x_range == 0:
+        x_range = 1.0  # Avoid division by zero
+    x_scaled = (x - x_min) / x_range
+
+    # Objective: minimize sum of squared residuals (on scaled x)
     def objective(params):
-        a, b, c = params
-        y_pred = a * x**2 + b * x + c
+        a_s, b_s, c_s = params
+        y_pred = a_s * x_scaled**2 + b_s * x_scaled + c_s
         return np.sum((y - y_pred)**2)
-    
-    # Initial guess using standard polyfit
-    initial_params = np.polyfit(x, y, 2)
-    
+
+    # Initial guess using standard polyfit on scaled data
+    initial_params = np.polyfit(x_scaled, y, 2)
+
     # Ensure initial a is non-negative
     if initial_params[0] < 0:
-        initial_params[0] = 0.0001
-    
-    # Constraints: only convexity (a >= 0)
-    # No monotonicity constraint - let the optimizer decide
-    constraints = []
-    
-    # Bounds: a >= 0 (convexity), b and c unbounded
+        initial_params[0] = 0.0
+
+    # Bounds: a >= 0 (concave up), b and c unbounded
     bounds = [(0, None), (None, None), (None, None)]
-    
+
     # Optimize
     result = minimize(
         objective,
         initial_params,
         method='SLSQP',
         bounds=bounds,
-        constraints=constraints,
         options={'maxiter': 1000}
     )
-    
+
     if not result.success:
         print(f"Warning: Optimization did not converge: {result.message}")
         print("Using best available solution anyway.")
-    
-    a, b, c = result.x
-    
+
+    a_s, b_s, c_s = result.x
+
+    # Convert coefficients back to original scale
+    # If y = a_s * ((x - x_min)/x_range)^2 + b_s * ((x - x_min)/x_range) + c_s
+    # Expanding: y = (a_s/x_range^2)*x^2 + (-2*a_s*x_min/x_range^2 + b_s/x_range)*x
+    #              + (a_s*x_min^2/x_range^2 - b_s*x_min/x_range + c_s)
+    a = a_s / (x_range ** 2)
+    b = -2 * a_s * x_min / (x_range ** 2) + b_s / x_range
+    c = a_s * (x_min ** 2) / (x_range ** 2) - b_s * x_min / x_range + c_s
+
     # Check monotonicity visually (for reporting, not enforcing)
     x_check = np.linspace(x.min(), x.max(), 100)
     y_check = a * x_check**2 + b * x_check + c
     derivatives = 2 * a * x_check + b
-    
+
     if np.all(derivatives >= 0):
         monotonicity_status = "monotonically increasing"
     elif np.all(derivatives <= 0):
@@ -74,10 +87,10 @@ def convex_quadratic_fit(x, y):
             monotonicity_status = f"non-monotonic (minimum at x ≈ {turning_x:.2f})"
         else:
             monotonicity_status = "approximately linear"
-    
+
     print(f"Fitted convex quadratic: a={a:.6e}, b={b:.6e}, c={c:.6e}")
     print(f"Curve shape: {monotonicity_status}")
-    
+
     return a, b, c
 
 results_dir = "results"
@@ -199,9 +212,9 @@ print(f"\nMonotonicity check (derivative at data points):")
 print(f"  Min derivative: {derivatives_at_data.min():.6e}")
 print(f"  Max derivative: {derivatives_at_data.max():.6e}")
 if derivatives_at_data.min() >= -1e-10:  # Allow small numerical errors
-    print("  ✓ Curve is monotonically increasing over data range")
+    print("  [OK] Curve is monotonically increasing over data range")
 else:
-    print("  ⚠ Curve is not strictly monotonic over data range")
+    print("  [WARN] Curve is not strictly monotonic over data range")
 
 # Logarithmic regression: y = a_log * log(x) + b_log
 print("\nFitting logarithmic model: y = a*log(x) + b")
