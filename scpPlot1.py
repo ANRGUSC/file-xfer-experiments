@@ -97,22 +97,20 @@ results_dir = "results"
 
 # Determine which data file to use
 if len(sys.argv) > 1:
-    # Use specified number
-    data_num = int(sys.argv[1])
+    # Use specified timestamp (e.g., "1423" for 14:23)
+    time_stamp = sys.argv[1]
+    data_file = os.path.join(results_dir, f"scp_data_{time_stamp}.json")
 else:
-    # Find the latest (highest numbered) JSON file
-    existing_files = glob.glob(os.path.join(results_dir, "scp_data*.json"))
+    # Find the most recently modified JSON file
+    existing_files = glob.glob(os.path.join(results_dir, "scp_data_*.json"))
     if not existing_files:
         print("No data files found in results folder.")
         sys.exit(1)
-    max_num = 0
-    for f in existing_files:
-        match = re.search(r'scp_data(\d+)\.json$', f)
-        if match:
-            max_num = max(max_num, int(match.group(1)))
-    data_num = max_num
-
-data_file = os.path.join(results_dir, f"scp_data{data_num}.json")
+    # Sort by modification time, get the latest
+    data_file = max(existing_files, key=os.path.getmtime)
+    # Extract timestamp from filename for plot naming
+    match = re.search(r'scp_data_(\d{4})\.json$', data_file)
+    time_stamp = match.group(1) if match else "unknown"
 if not os.path.exists(data_file):
     print(f"Data file not found: {data_file}")
     sys.exit(1)
@@ -143,7 +141,7 @@ plt.xticks([1, 2, 3, 4, 5], labels)
 plt.yscale('log')
 plt.ylabel("Elapsed time (seconds)")
 plt.title("SCP Transfer Time per File Size")
-boxplot_file = os.path.join(results_dir, f"scp_data{data_num}_boxplot.png")
+boxplot_file = os.path.join(results_dir, f"scp_data{time_stamp}_boxplot.png")
 plt.savefig(boxplot_file)
 print(f"Saved {boxplot_file}")
 plt.close()
@@ -171,7 +169,7 @@ plt.plot(x, y_fit)
 plt.xlabel("File size (KB)")
 plt.ylabel("Median SCP time (s)")
 plt.title(f"SCP Transfer Time vs File Size (Linear Regression)\nR² = {linear_r_squared:.4f}")
-linear_file = os.path.join(results_dir, f"scp_data{data_num}_linear.png")
+linear_file = os.path.join(results_dir, f"scp_data{time_stamp}_linear.png")
 plt.savefig(linear_file)
 print(f"Saved {linear_file}")
 plt.close()
@@ -199,7 +197,7 @@ plt.xlabel("File size (KB)")
 plt.ylabel("Median SCP time (s)")
 plt.title(f"SCP Transfer Time vs File Size (Convex Quadratic)\nR² = {quadratic_r_squared:.4f}")
 plt.legend()
-quadratic_file = os.path.join(results_dir, f"scp_data{data_num}_quadratic.png")
+quadratic_file = os.path.join(results_dir, f"scp_data{time_stamp}_quadratic.png")
 plt.savefig(quadratic_file)
 print(f"Saved {quadratic_file}")
 plt.close()
@@ -239,7 +237,7 @@ plt.xlabel("File size (KB)")
 plt.ylabel("Median SCP time (s)")
 plt.title(f"SCP Transfer Time vs File Size (Logarithmic Regression)\nR² = {log_r_squared:.4f}")
 plt.legend()
-log_file = os.path.join(results_dir, f"scp_data{data_num}_logarithmic.png")
+log_file = os.path.join(results_dir, f"scp_data{time_stamp}_logarithmic.png")
 plt.savefig(log_file)
 print(f"Saved {log_file}")
 plt.close()
@@ -247,121 +245,38 @@ plt.close()
 print(f"logarithmic: y = {a_log:.6e}*log(x) + {b_log:.6e}")
 print(f"logarithmic: R² = {log_r_squared:.4f}")
 
-# Exponential regression: y = a_exp * exp(b_exp * x)
-print("\nFitting exponential model: y = a*exp(b*x)")
-# Use log transform: log(y) = log(a) + b*x
-# This assumes all y values are positive
-if np.all(np.array(medians) > 0):
-    log_y = np.log(medians)
-    b_exp, log_a_exp = np.polyfit(fileSizes, log_y, 1)
-    a_exp = np.exp(log_a_exp)
-    y_fit_exp = a_exp * np.exp(b_exp * fileSizes)
-    
-    # Create smooth curve for plotting
-    x_fit_exp = np.linspace(fileSizes[0], fileSizes[-1], 100)
-    y_fit_exp_smooth = a_exp * np.exp(b_exp * x_fit_exp)
-    
-    # R squared value for exponential fit
-    ss_res_exp = np.sum((medians - y_fit_exp)**2)
-    ss_tot_exp = np.sum((medians - np.mean(medians))**2)
-    exp_r_squared = 1 - (ss_res_exp / ss_tot_exp)
-    
-    plt.figure()
-    plt.scatter(fileSizes, medians, color='blue', label='Median times')
-    plt.plot(x_fit_exp, y_fit_exp_smooth, color='orange', label='Exponential fit')
-    plt.xscale('log')
-    plt.xlabel("File size (KB)")
-    plt.ylabel("Median SCP time (s)")
-    plt.title(f"SCP Transfer Time vs File Size (Exponential Regression)\nR² = {exp_r_squared:.4f}")
-    plt.legend()
-    exp_file = os.path.join(results_dir, f"scp_data{data_num}_exponential.png")
-    plt.savefig(exp_file)
-    print(f"Saved {exp_file}")
-    plt.close()
-    
-    print(f"exponential: y = {a_exp:.6e}*exp({b_exp:.6e}*x)")
-    print(f"exponential: R² = {exp_r_squared:.4f}")
-    
-    exp_fit_success = True
-else:
-    print("Warning: Cannot fit exponential model - some median values are not positive")
-    a_exp = None
-    b_exp = None
-    exp_r_squared = None
-    exp_fit_success = False
-
-# Save analysis results to JSON
-analysis_data = {
-    "timestamp": datetime.now().isoformat(),
-    "source_data_file": f"scp_data{data_num}.json",
+# Add analysis results to the original data file
+data["analysis"] = {
+    "analysis_timestamp": datetime.now().isoformat(),
     "medians": medians,
-    "file_sizes_kb": file_sizes_kb,
     "linear_regression": {
         "coefficients": {"m": float(m), "b": float(b)},
-        "r_squared": float(linear_r_squared)
+        "r_squared": float(linear_r_squared),
+        "model": "y = m*x + b"
     },
     "quadratic_regression": {
         "coefficients": {"a": float(a), "b": float(b_coef), "c": float(c)},
         "r_squared": float(quadratic_r_squared),
-        "convexity": "enforced (a >= 0)",
-        "monotonicity": "not enforced (checked visually)"
+        "model": "y = a*x² + b*x + c (convex, a >= 0)"
     },
     "logarithmic_regression": {
         "coefficients": {"a": float(a_log), "b": float(b_log)},
         "r_squared": float(log_r_squared),
         "model": "y = a*log(x) + b"
     },
-    "exponential_regression": {
-        "coefficients": {"a": float(a_exp) if exp_fit_success else None, "b": float(b_exp) if exp_fit_success else None},
-        "r_squared": float(exp_r_squared) if exp_fit_success else None,
-        "model": "y = a*exp(b*x)",
-        "fit_success": exp_fit_success
-    }
-}
-
-analysis_file = os.path.join(results_dir, f"scp_data_analyzed{data_num}.json")
-with open(analysis_file, "w") as f:
-    json.dump(analysis_data, f, indent=2)
-print(f"\nSaved {analysis_file}")
-
-# Save R-squared summary to a separate JSON file for easy comparison
-r_squared_summary = {
-    "timestamp": datetime.now().isoformat(),
-    "source_data_file": f"scp_data{data_num}.json",
-    "r_squared_values": {
-        "linear_regression": {
-            "r_squared": float(linear_r_squared),
-            "model": "y = m*x + b"
-        },
-        "quadratic_regression": {
-            "r_squared": float(quadratic_r_squared),
-            "model": "y = a*x² + b*x + c (convex, a >= 0)"
-        },
-        "logarithmic_regression": {
-            "r_squared": float(log_r_squared),
-            "model": "y = a*log(x) + b"
-        },
-        "exponential_regression": {
-            "r_squared": float(exp_r_squared) if exp_fit_success else None,
-            "model": "y = a*exp(b*x)",
-            "fit_success": exp_fit_success
-        }
-    },
     "best_fit": {
         "model": max(
-            [("linear", linear_r_squared), 
-             ("quadratic", quadratic_r_squared), 
-             ("logarithmic", log_r_squared),
-             ("exponential", exp_r_squared if exp_fit_success else -1)],
+            [("linear", linear_r_squared),
+             ("quadratic", quadratic_r_squared),
+             ("logarithmic", log_r_squared)],
             key=lambda x: x[1]
         )[0],
-        "r_squared": max(linear_r_squared, quadratic_r_squared, log_r_squared, 
-                        exp_r_squared if exp_fit_success else -1)
+        "r_squared": max(linear_r_squared, quadratic_r_squared, log_r_squared)
     }
 }
 
-r_squared_file = os.path.join(results_dir, f"scp_data_r_squared{data_num}.json")
-with open(r_squared_file, "w") as f:
-    json.dump(r_squared_summary, f, indent=2)
-print(f"Saved R² summary: {r_squared_file}")
+# Save back to the same file
+with open(data_file, "w") as f:
+    json.dump(data, f, indent=2)
+print(f"\nUpdated {data_file} with analysis results")
 

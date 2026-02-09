@@ -6,7 +6,7 @@
 # EDIT THE PATH BELOW to match your project directory location
 # =============================================================================
 
-PROJECT_DIR="/path/to/your/file-xfer-experiments"  # <-- EDIT THIS LINE
+PROJECT_DIR="/Users/oliviacognetti/Downloads/Research/file-xfer-experiments"
 
 # =============================================================================
 # Do not edit below this line

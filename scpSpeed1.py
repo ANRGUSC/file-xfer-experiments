@@ -93,14 +93,8 @@ print("All SCP runs complete.")
 results_dir = "results"
 os.makedirs(results_dir, exist_ok=True)
 
-# Find next sequential number
-existing_files = glob.glob(os.path.join(results_dir, "scp_data*.json"))
-max_num = 0
-for f in existing_files:
-    match = re.search(r'scp_data(\d+)\.json$', f)
-    if match:
-        max_num = max(max_num, int(match.group(1)))
-next_num = max_num + 1
+# Generate timestamp for filename (military time: HHMM)
+time_stamp = datetime.now().strftime("%H%M")
 
 # Get sender IP address
 try:
@@ -124,7 +118,7 @@ data = {
     "times": times
 }
 
-output_file = os.path.join(results_dir, f"scp_data{next_num}.json")
+output_file = os.path.join(results_dir, f"scp_data_{time_stamp}.json")
 with open(output_file, "w") as f:
     json.dump(data, f, indent=2)
 
