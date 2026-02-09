@@ -1,0 +1,43 @@
+{
+  "timestamp": "2026-02-09T12:03:42.052796",
+  "source_data_file": "scp_data26.json",
+  "medians": [
+    3.8125336875000024,
+    3.9669869384999985,
+    3.8058331460000034,
+    4.116876604500005,
+    5.407754458500007
+  ],
+  "file_sizes_kb": [
+    1,
+    10,
+    100,
+    1000,
+    10000
+  ],
+  "linear_regression": {
+    "coefficients": {
+      "m": 0.00015340665208061352,
+      "b": 3.881096704746464
+    },
+    "r_squared": 0.9852507079709407
+  },
+  "quadratic_regression": {
+    "coefficients": {
+      "a": 8.579388086490727e-25,
+      "b": 0.00015340665170050243,
+      "c": 3.8810967020487612
+    },
+    "r_squared": 0.9852507079709406,
+    "convexity": "enforced (a >= 0)",
+    "monotonicity": "not enforced (checked visually)"
+  },
+  "logarithmic_regression": {
+    "coefficients": {
+      "a": 0.14506874113636295,
+      "b": 3.553930725399999
+    },
+    "r_squared": 0.6120732716512854,
+    "model": "y = a*log(x) + b"
+  }
+}

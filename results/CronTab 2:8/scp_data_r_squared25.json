@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-02-09T11:03:23.197153",
+  "source_data_file": "scp_data25.json",
+  "r_squared_values": {
+    "linear_regression": {
+      "r_squared": 0.9793362129835465,
+      "model": "y = m*x + b"
+    },
+    "quadratic_regression": {
+      "r_squared": 0.979336212983546,
+      "model": "y = a*x\u00b2 + b*x + c (convex, a >= 0)"
+    },
+    "logarithmic_regression": {
+      "r_squared": 0.6739535826125993,
+      "model": "y = a*log(x) + b"
+    },
+    "exponential_regression": {
+      "r_squared": 0.9755031276210356,
+      "model": "y = a*exp(b*x)",
+      "fit_success": true
+    }
+  },
+  "best_fit": {
+    "model": "linear",
+    "r_squared": 0.9793362129835465
+  }
+}

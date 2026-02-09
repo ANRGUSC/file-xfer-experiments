@@ -1,0 +1,52 @@
+{
+  "timestamp": "2026-02-08T23:03:39.948031",
+  "source_data_file": "scp_data17.json",
+  "medians": [
+    3.507570687500015,
+    3.5072269795000137,
+    3.5033688335000184,
+    3.729380875500019,
+    5.243165646000029
+  ],
+  "file_sizes_kb": [
+    1,
+    10,
+    100,
+    1000,
+    10000
+  ],
+  "linear_regression": {
+    "coefficients": {
+      "m": 0.00017345157180403335,
+      "b": 3.5126985215370965
+    },
+    "r_squared": 0.9988355234537112
+  },
+  "quadratic_regression": {
+    "coefficients": {
+      "a": 3.694789720668121e-25,
+      "b": 0.00017345157126353225,
+      "c": 3.5126985165992863
+    },
+    "r_squared": 0.9988355234537111,
+    "convexity": "enforced (a >= 0)",
+    "monotonicity": "not enforced (checked visually)"
+  },
+  "logarithmic_regression": {
+    "coefficients": {
+      "a": 0.1603998837757428,
+      "b": 3.1594738418000126
+    },
+    "r_squared": 0.593393735736266,
+    "model": "y = a*log(x) + b"
+  },
+  "exponential_regression": {
+    "coefficients": {
+      "a": 3.519749579705469,
+      "b": 4.002275791614133e-05
+    },
+    "r_squared": 0.9975212583153985,
+    "model": "y = a*exp(b*x)",
+    "fit_success": true
+  }
+}
