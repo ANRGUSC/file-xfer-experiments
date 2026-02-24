@@ -214,37 +214,6 @@ if derivatives_at_data.min() >= -1e-10:  # Allow small numerical errors
 else:
     print("  [WARN] Curve is not strictly monotonic over data range")
 
-# Logarithmic regression: y = a_log * log(x) + b_log
-print("\nFitting logarithmic model: y = a*log(x) + b")
-log_x = np.log(fileSizes)
-a_log, b_log = np.polyfit(log_x, medians, 1)
-y_fit_log = a_log * log_x + b_log
-
-# Create smooth curve for plotting
-x_fit_log = np.linspace(fileSizes[0], fileSizes[-1], 100)
-y_fit_log_smooth = a_log * np.log(x_fit_log) + b_log
-
-# R squared value for logarithmic fit
-ss_res_log = np.sum((medians - y_fit_log)**2)
-ss_tot_log = np.sum((medians - np.mean(medians))**2)
-log_r_squared = 1 - (ss_res_log / ss_tot_log)
-
-plt.figure()
-plt.scatter(fileSizes, medians, color='blue', label='Median times')
-plt.plot(x_fit_log, y_fit_log_smooth, color='green', label='Logarithmic fit')
-plt.xscale('log')
-plt.xlabel("File size (KB)")
-plt.ylabel("Median SCP time (s)")
-plt.title(f"SCP Transfer Time vs File Size (Logarithmic Regression)\nR² = {log_r_squared:.4f}")
-plt.legend()
-log_file = os.path.join(results_dir, f"scp_data{time_stamp}_logarithmic.png")
-plt.savefig(log_file)
-print(f"Saved {log_file}")
-plt.close()
-
-print(f"logarithmic: y = {a_log:.6e}*log(x) + {b_log:.6e}")
-print(f"logarithmic: R² = {log_r_squared:.4f}")
-
 # Add analysis results to the original data file
 data["analysis"] = {
     "analysis_timestamp": datetime.now().isoformat(),
@@ -259,19 +228,13 @@ data["analysis"] = {
         "r_squared": float(quadratic_r_squared),
         "model": "y = a*x² + b*x + c (convex, a >= 0)"
     },
-    "logarithmic_regression": {
-        "coefficients": {"a": float(a_log), "b": float(b_log)},
-        "r_squared": float(log_r_squared),
-        "model": "y = a*log(x) + b"
-    },
     "best_fit": {
         "model": max(
             [("linear", linear_r_squared),
-             ("quadratic", quadratic_r_squared),
-             ("logarithmic", log_r_squared)],
+             ("quadratic", quadratic_r_squared)],
             key=lambda x: x[1]
         )[0],
-        "r_squared": max(linear_r_squared, quadratic_r_squared, log_r_squared)
+        "r_squared": max(linear_r_squared, quadratic_r_squared)
     }
 }
 

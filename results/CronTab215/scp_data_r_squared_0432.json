@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-02-16T04:32:14.006657",
+  "r_squared_values": {
+    "linear": 0.9988865678756548,
+    "quadratic": 0.9988865678756547
+  },
+  "best_fit": "linear"
+}
