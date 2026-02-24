@@ -20,12 +20,14 @@ struct DataPoint {
     double median_latency;
     double linear_r_squared;
     double quadratic_r_squared;
+    double linear_m;
     std::string time_label;
     int time_minutes;
     std::string filename;
     bool valid_a;
     bool valid_b;
     bool valid_c;
+    bool valid_linear_m;
 };
 
 // Extract nested quadratic 'a' coefficient
@@ -107,6 +109,39 @@ double extractQuadraticC(const std::string& json) {
     if (nextSection != std::string::npos && cPos > nextSection) return 0.0;
 
     size_t colonPos = json.find(":", cPos);
+    if (colonPos == std::string::npos) return 0.0;
+
+    size_t pos = colonPos + 1;
+    while (pos < json.length() && (json[pos] == ' ' || json[pos] == '\n' || json[pos] == '\t')) {
+        pos++;
+    }
+
+    size_t end = pos;
+    while (end < json.length() && (isdigit(json[end]) || json[end] == '.' ||
+           json[end] == '-' || json[end] == '+' || json[end] == 'e' || json[end] == 'E')) {
+        end++;
+    }
+
+    std::string numStr = json.substr(pos, end - pos);
+    return std::stod(numStr);
+}
+
+// Extract linear 'm' coefficient (slope) from JSON
+double extractLinearM(const std::string& json) {
+    size_t linPos = json.find("\"linear\"");
+    if (linPos == std::string::npos) return 0.0;
+
+    size_t coeffPos = json.find("\"coefficients\"", linPos);
+    if (coeffPos == std::string::npos) return 0.0;
+
+    size_t mPos = json.find("\"m\"", coeffPos);
+    if (mPos == std::string::npos) return 0.0;
+
+    // Make sure we're in the linear section, not quadratic
+    size_t quadPos = json.find("\"quadratic\"", linPos);
+    if (quadPos != std::string::npos && mPos > quadPos) return 0.0;
+
+    size_t colonPos = json.find(":", mPos);
     if (colonPos == std::string::npos) return 0.0;
 
     size_t pos = colonPos + 1;
@@ -277,6 +312,7 @@ int main(int argc, char* argv[]) {
             double a = extractQuadraticA(json);
             double b = extractQuadraticB(json);
             double c = extractQuadraticC(json);
+            double linearM = extractLinearM(json);
             double senderBitrate = extractSenderBitrate(json);
             double medianLatency = extractMedianLatency(json);
             double linearRSq = extractLinearRSquared(json);
@@ -314,6 +350,12 @@ int main(int argc, char* argv[]) {
                 dp.b_value = b * 1000.0;
             }
 
+            // Check validity for linear 'm'
+            dp.valid_linear_m = (linearM != 0.0 && std::isfinite(linearM));
+            if (dp.valid_linear_m) {
+                dp.linear_m = linearM;  // seconds/KB
+            }
+
             allData.push_back(dp);
         }
     }
@@ -325,10 +367,11 @@ int main(int argc, char* argv[]) {
               });
 
     // Filter data for each graph
-    std::vector<DataPoint> aData, bData;
+    std::vector<DataPoint> aData, bData, mData;
     for (const auto& dp : allData) {
         if (dp.valid_a) aData.push_back(dp);
         if (dp.valid_b) bData.push_back(dp);
+        if (dp.valid_linear_m) mData.push_back(dp);
     }
 
     std::cout << "Processed " << totalFiles << " files\n\n";
@@ -717,6 +760,142 @@ int main(int argc, char* argv[]) {
             fs::remove("plot_script_rsq.gp");
         } else {
             std::cerr << "  Error: gnuplot failed for R² plot\n";
+        }
+    }
+
+    // ========== Graph 8: File Data Rate (1/m in bps) vs Time ==========
+    std::cout << "\nGraph 8: File Data Rate (1/m) vs Time\n";
+    std::cout << "  Valid data points: " << mData.size() << "\n";
+
+    if (!mData.empty()) {
+        // m is in seconds/KB. To get seconds/bit: m / (1024 * 8) = m / 8192
+        // Data rate = 1 / (m/8192) = 8192/m bits/sec
+        // Convert to Mbps: 8192 / (m * 1e6)
+        std::ofstream dataFile("plot_data_datarate.tmp");
+        for (size_t i = 0; i < mData.size(); i++) {
+            double data_rate_mbps = 8192.0 / (mData[i].linear_m * 1e6);
+            dataFile << i << " " << data_rate_mbps << "\n";
+        }
+        dataFile.close();
+
+        std::ofstream gnuplotScript("plot_script_datarate.gp");
+        gnuplotScript << "set terminal png size 1000,600 enhanced font 'Arial,11'\n";
+        gnuplotScript << "set output 'file-data-rate.png'\n";
+        gnuplotScript << "set title 'SCP File Transfer Data Rate (1/m) vs Time of Day'\n";
+        gnuplotScript << "set xlabel 'Time of Day (Military Time)'\n";
+        gnuplotScript << "set ylabel 'Data Rate (Mbps)'\n";
+        gnuplotScript << "set grid\n";
+        gnuplotScript << "set pointsize 1.5\n";
+        gnuplotScript << "set xtics rotate by -45\n";
+
+        gnuplotScript << "set xtics (";
+        for (size_t i = 0; i < mData.size(); i++) {
+            if (i > 0) gnuplotScript << ", ";
+            gnuplotScript << "\"" << mData[i].time_label << "\" " << i;
+        }
+        gnuplotScript << ")\n";
+
+        gnuplotScript << "set xrange [-0.5:" << (mData.size() - 0.5) << "]\n";
+        gnuplotScript << "plot 'plot_data_datarate.tmp' using 1:2 with linespoints pt 7 lc rgb 'blue' title 'Data Rate (1/m)'\n";
+        gnuplotScript.close();
+
+        int result = system("gnuplot plot_script_datarate.gp");
+        if (result == 0) {
+            std::cout << "  Saved: file-data-rate.png\n";
+            fs::remove("plot_data_datarate.tmp");
+            fs::remove("plot_script_datarate.gp");
+        } else {
+            std::cerr << "  Error: gnuplot failed for data rate plot\n";
+        }
+    }
+
+    // ========== Graph 9: SCP Data Rate (1/m) vs iPerf3 Data Rate ==========
+    std::cout << "\nGraph 9: SCP Data Rate (1/m) vs iPerf3 Data Rate\n";
+
+    // Build filtered dataset where both linear_m and sender_bitrate are valid
+    std::vector<DataPoint> rateCompData;
+    for (const auto& dp : allData) {
+        if (dp.valid_linear_m && dp.sender_bitrate > 0.0) {
+            rateCompData.push_back(dp);
+        }
+    }
+    std::cout << "  Valid data points: " << rateCompData.size() << "\n";
+
+    if (!rateCompData.empty()) {
+        // Calculate linear regression: scp_rate = slope * iperf_rate + intercept
+        double sum_x = 0, sum_y = 0, sum_xy = 0, sum_x2 = 0;
+        int n = rateCompData.size();
+
+        std::vector<double> scp_rates(n), iperf_rates(n);
+        for (int i = 0; i < n; i++) {
+            iperf_rates[i] = rateCompData[i].sender_bitrate;  // Mbps
+            scp_rates[i] = 8192.0 / (rateCompData[i].linear_m * 1e6);  // Mbps
+            sum_x += iperf_rates[i];
+            sum_y += scp_rates[i];
+            sum_xy += iperf_rates[i] * scp_rates[i];
+            sum_x2 += iperf_rates[i] * iperf_rates[i];
+        }
+        double slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x);
+        double intercept = (sum_y - slope * sum_x) / n;
+
+        // Calculate R-squared
+        double mean_y = sum_y / n;
+        double ss_tot = 0, ss_res = 0;
+        for (int i = 0; i < n; i++) {
+            double predicted = slope * iperf_rates[i] + intercept;
+            ss_res += (scp_rates[i] - predicted) * (scp_rates[i] - predicted);
+            ss_tot += (scp_rates[i] - mean_y) * (scp_rates[i] - mean_y);
+        }
+        double r_squared = 1.0 - (ss_res / ss_tot);
+
+        std::cout << "  Linear fit: SCP_rate = " << slope << " * iPerf_rate + " << intercept << "\n";
+        std::cout << "  R² = " << r_squared << "\n";
+
+        std::ofstream dataFile("plot_data_rate_comp.tmp");
+        for (int i = 0; i < n; i++) {
+            dataFile << iperf_rates[i] << " " << scp_rates[i] << "\n";
+        }
+        dataFile.close();
+
+        // Find min/max for regression line and axes
+        double min_x = iperf_rates[0], max_x = iperf_rates[0];
+        double min_y = scp_rates[0], max_y = scp_rates[0];
+        for (int i = 0; i < n; i++) {
+            if (iperf_rates[i] < min_x) min_x = iperf_rates[i];
+            if (iperf_rates[i] > max_x) max_x = iperf_rates[i];
+            if (scp_rates[i] < min_y) min_y = scp_rates[i];
+            if (scp_rates[i] > max_y) max_y = scp_rates[i];
+        }
+        double x_margin = (max_x - min_x) * 0.1;
+        double y_margin = (max_y - min_y) * 0.1;
+
+        std::ofstream regFile("plot_data_rate_comp_reg.tmp");
+        regFile << min_x << " " << (slope * min_x + intercept) << "\n";
+        regFile << max_x << " " << (slope * max_x + intercept) << "\n";
+        regFile.close();
+
+        std::ofstream gnuplotScript("plot_script_rate_comp.gp");
+        gnuplotScript << "set terminal png size 1000,600 enhanced font 'Arial,11'\n";
+        gnuplotScript << "set output 'datarate-vs-iperf.png'\n";
+        gnuplotScript << "set title 'SCP Data Rate (1/m) vs iPerf3 Measured Rate (R² = " << std::fixed << std::setprecision(4) << r_squared << ")'\n";
+        gnuplotScript << "set xlabel 'iPerf3 Data Rate (Mbps)'\n";
+        gnuplotScript << "set ylabel 'SCP Data Rate from 1/m (Mbps)'\n";
+        gnuplotScript << "set grid\n";
+        gnuplotScript << "set pointsize 1.5\n";
+        gnuplotScript << "set xrange [" << (min_x - x_margin) << ":" << (max_x + x_margin) << "]\n";
+        gnuplotScript << "set yrange [" << (min_y - y_margin) << ":" << (max_y + y_margin) << "]\n";
+        gnuplotScript << "plot 'plot_data_rate_comp.tmp' using 1:2 with points pt 7 ps 1.5 lc rgb 'blue' title 'Trials', \\\n";
+        gnuplotScript << "     'plot_data_rate_comp_reg.tmp' using 1:2 with lines lc rgb 'red' lw 2 title 'Linear Fit'\n";
+        gnuplotScript.close();
+
+        int result = system("gnuplot plot_script_rate_comp.gp");
+        if (result == 0) {
+            std::cout << "  Saved: datarate-vs-iperf.png\n";
+            fs::remove("plot_data_rate_comp.tmp");
+            fs::remove("plot_data_rate_comp_reg.tmp");
+            fs::remove("plot_script_rate_comp.gp");
+        } else {
+            std::cerr << "  Error: gnuplot failed for rate comparison plot\n";
         }
     }
 
