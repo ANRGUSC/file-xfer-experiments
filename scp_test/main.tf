@@ -25,11 +25,6 @@ variable "do_token" {
   sensitive   = true
 }
 
-variable "ssh_public_key_path" {
-  description = "Path to SSH public key for console access"
-  default     = "~/.ssh/id_ed25519.pub"
-}
-
 variable "ssh_private_key_path" {
   description = "Path to SSH private key for provisioner access"
   default     = "~/.ssh/id_ed25519"
@@ -195,14 +190,6 @@ resource "digitalocean_droplet" "toronto" {
   user_data = local.user_data_script
 }
 
-locals {
-  droplet_ips = {
-    london    = digitalocean_droplet.london.ipv4_address
-    amsterdam = digitalocean_droplet.amsterdam.ipv4_address
-    nyc       = digitalocean_droplet.nyc.ipv4_address
-    toronto   = digitalocean_droplet.toronto.ipv4_address
-  }
-}
 
 # London → Amsterdam, Toronto, NYC  (sequential on London droplet)
 resource "null_resource" "scp_from_london" {
